@@ -201,6 +201,11 @@ private fun RecordCard(
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f)
                 )
+                Text(
+                    text = "${record.totalCount}把",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
                 IconButton(onClick = onDelete) {
                     Icon(
                         Icons.Default.Delete,

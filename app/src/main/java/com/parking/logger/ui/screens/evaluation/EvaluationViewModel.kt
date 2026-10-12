@@ -1,6 +1,5 @@
 package com.parking.logger.ui.screens.evaluation
 
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.parking.logger.data.model.ParkingRecord
@@ -15,26 +14,9 @@ class EvaluationViewModel(
     private val sessionId: Long,
     private val parkingTypeName: String,
     private val conditionName: String,
-    private val boundaryName: String
+    private val boundaryName: String,
+    private val totalCount: Int
 ) : ViewModel() {
-
-    private val _forwardCount = MutableStateFlow("")
-    val forwardCount: StateFlow<String> = _forwardCount
-
-    private val _backwardCount = MutableStateFlow("")
-    val backwardCount: StateFlow<String> = _backwardCount
-
-    private val _count3 = MutableStateFlow("")
-    val count3: StateFlow<String> = _count3
-
-    private val _count4 = MutableStateFlow("")
-    val count4: StateFlow<String> = _count4
-
-    private val _count5 = MutableStateFlow("")
-    val count5: StateFlow<String> = _count5
-
-    private val _count6 = MutableStateFlow("")
-    val count6: StateFlow<String> = _count6
 
     private val _isIO = MutableStateFlow(true)
     val isIO: StateFlow<Boolean> = _isIO
@@ -60,12 +42,9 @@ class EvaluationViewModel(
     val needsPullOut = parkingTypeName == ParkingType.FRONT_IN.name ||
             parkingTypeName == ParkingType.SIDE_PARKING.name
 
-    fun updateForwardCount(v: String) { _forwardCount.value = v }
-    fun updateBackwardCount(v: String) { _backwardCount.value = v }
-    fun updateCount3(v: String) { _count3.value = v }
-    fun updateCount4(v: String) { _count4.value = v }
-    fun updateCount5(v: String) { _count5.value = v }
-    fun updateCount6(v: String) { _count6.value = v }
+    val parkingTypeLabel: String = runCatching {
+        ParkingType.valueOf(parkingTypeName).label
+    }.getOrDefault(parkingTypeName)
 
     fun setIsIO(value: Boolean) { _isIO.value = value }
 
@@ -81,30 +60,13 @@ class EvaluationViewModel(
     fun setAudioPath(v: String) { _audioPath.value = v }
 
     fun save() {
-        val forward = _forwardCount.value.toIntOrNull() ?: 0
-        val backward = _backwardCount.value.toIntOrNull() ?: 0
-        val c3 = _count3.value.toIntOrNull() ?: 0
-        val c4 = _count4.value.toIntOrNull() ?: 0
-        val c5 = _count5.value.toIntOrNull() ?: 0
-        val c6 = _count6.value.toIntOrNull() ?: 0
-
-        if (forward <= 0) {
-            _error.value = "请填写有效的泊入把数（前进）"
-            return
-        }
-
         viewModelScope.launch {
             val record = ParkingRecord(
                 sessionId = sessionId,
                 parkingType = parkingTypeName,
                 condition = conditionName,
                 boundary = boundaryName,
-                forwardCount = forward,
-                backwardCount = backward,
-                count3 = c3,
-                count4 = c4,
-                count5 = c5,
-                count6 = c6,
+                totalCount = totalCount,
                 isIO = _isIO.value,
                 ioIssues = if (_isIO.value) "" else _selectedIssues.value.joinToString(","),
                 note = _note.value,

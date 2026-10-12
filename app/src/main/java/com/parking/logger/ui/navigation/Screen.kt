@@ -16,9 +16,14 @@ sealed class Screen(val route: String) {
         fun createRoute(sessionId: Long, parkingType: String, condition: String) =
             "boundary/$sessionId/$parkingType/$condition"
     }
-    data object Evaluation : Screen("evaluation/{sessionId}/{parkingType}/{condition}/{boundary}") {
+    data object Count : Screen("count/{sessionId}/{parkingType}/{condition}/{boundary}") {
         fun createRoute(sessionId: Long, parkingType: String, condition: String, boundary: String) =
-            "evaluation/$sessionId/$parkingType/$condition/$boundary"
+            "count/$sessionId/$parkingType/$condition/$boundary"
+    }
+    data object Evaluation : Screen("evaluation/{sessionId}/{parkingType}/{condition}/{boundary}/{totalCount}") {
+        fun createRoute(
+            sessionId: Long, parkingType: String, condition: String, boundary: String, totalCount: Int
+        ) = "evaluation/$sessionId/$parkingType/$condition/$boundary/$totalCount"
     }
     data object PullOut : Screen("pull_out/{recordId}/{sessionId}") {
         fun createRoute(recordId: Long, sessionId: Long) = "pull_out/$recordId/$sessionId"

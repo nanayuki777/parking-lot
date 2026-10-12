@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -28,6 +27,7 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -52,7 +52,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -68,32 +67,26 @@ fun EvaluationScreen(
     parkingTypeName: String,
     conditionName: String,
     boundaryName: String,
+    totalCount: Int,
     repository: ParkingRepository,
     onRecordSaved: (Long, Boolean) -> Unit,
     onBack: () -> Unit
 ) {
     val viewModel: EvaluationViewModel = viewModel(
-        key = "$sessionId-$parkingTypeName-$conditionName-$boundaryName",
+        key = "$sessionId-$parkingTypeName-$conditionName-$boundaryName-$totalCount",
         factory = object : androidx.lifecycle.ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
                 return EvaluationViewModel(
-                    repository, sessionId, parkingTypeName, conditionName, boundaryName
+                    repository, sessionId, parkingTypeName, conditionName, boundaryName, totalCount
                 ) as T
             }
         }
     )
 
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val forwardCount by viewModel.forwardCount.collectAsState()
-    val backwardCount by viewModel.backwardCount.collectAsState()
-    val count3 by viewModel.count3.collectAsState()
-    val count4 by viewModel.count4.collectAsState()
-    val count5 by viewModel.count5.collectAsState()
-    val count6 by viewModel.count6.collectAsState()
     val isIO by viewModel.isIO.collectAsState()
     val selectedIssues by viewModel.selectedIssues.collectAsState()
     val note by viewModel.note.collectAsState()
@@ -218,19 +211,30 @@ fun EvaluationScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Section: Parking counts (6 numbers)
-            Text(
-                text = "前后停车把数",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            CountInput(label = "前进", value = forwardCount, onValueChange = viewModel::updateForwardCount)
-            CountInput(label = "后退", value = backwardCount, onValueChange = viewModel::updateBackwardCount)
-            CountInput(label = "第3把", value = count3, onValueChange = viewModel::updateCount3)
-            CountInput(label = "第4把", value = count4, onValueChange = viewModel::updateCount4)
-            CountInput(label = "第5把", value = count5, onValueChange = viewModel::updateCount5)
-            CountInput(label = "第6把", value = count6, onValueChange = viewModel::updateCount6)
+            // Section: Summary card (total count + parking type)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "泊车类型: ${viewModel.parkingTypeLabel}",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "本次泊车共用 $totalCount 把",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    Text(
+                        text = "条件: $conditionName · 边界: $boundaryName",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -382,24 +386,3 @@ fun EvaluationScreen(
     }
 }
 
-@Composable
-private fun CountInput(
-    label: String,
-    value: String,
-    onValueChange: (String) -> Unit
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = { newVal ->
-            if (newVal.isEmpty() || newVal.all { it.isDigit() }) {
-                onValueChange(newVal)
-            }
-        },
-        label = { Text(label) },
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-    )
-}
