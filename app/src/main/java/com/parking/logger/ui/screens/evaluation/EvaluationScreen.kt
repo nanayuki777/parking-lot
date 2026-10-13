@@ -192,7 +192,7 @@ fun EvaluationScreen(
                 title = { Text("结果评估") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "返回上一步")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

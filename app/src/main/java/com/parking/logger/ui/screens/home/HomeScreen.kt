@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -53,7 +54,8 @@ import com.parking.logger.data.repository.ParkingRepository
 fun HomeScreen(
     repository: ParkingRepository,
     onStartSession: (Long) -> Unit,
-    onManageTesters: () -> Unit
+    onManageTesters: () -> Unit,
+    onOpenHistory: () -> Unit
 ) {
     val viewModel: HomeViewModel = viewModel(
         factory = object : androidx.lifecycle.ViewModelProvider.Factory {
@@ -96,6 +98,9 @@ fun HomeScreen(
                     actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 actions = {
+                    IconButton(onClick = onOpenHistory) {
+                        Icon(Icons.Default.History, contentDescription = "历史记录")
+                    }
                     IconButton(onClick = onManageTesters) {
                         Icon(Icons.Default.Settings, contentDescription = "人员管理")
                     }

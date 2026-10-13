@@ -16,6 +16,7 @@ import com.parking.logger.ui.screens.condition.ConditionScreen
 import com.parking.logger.ui.screens.count.CountScreen
 import com.parking.logger.ui.screens.evaluation.EvaluationScreen
 import com.parking.logger.ui.screens.home.HomeScreen
+import com.parking.logger.ui.screens.history.HistoryScreen
 import com.parking.logger.ui.screens.parking_type.ParkingTypeScreen
 import com.parking.logger.ui.screens.pullout.PullOutScreen
 import com.parking.logger.ui.screens.session.SessionScreen
@@ -36,12 +37,22 @@ fun NavGraph(navController: NavHostController) {
                 },
                 onManageTesters = {
                     navController.navigate(Screen.TesterMgmt.route)
+                },
+                onOpenHistory = {
+                    navController.navigate(Screen.History.route)
                 }
             )
         }
 
         composable(Screen.TesterMgmt.route) {
             TesterMgmtScreen(
+                repository = repository,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.History.route) {
+            HistoryScreen(
                 repository = repository,
                 onBack = { navController.popBackStack() }
             )

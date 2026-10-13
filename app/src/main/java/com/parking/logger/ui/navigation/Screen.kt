@@ -3,6 +3,7 @@ package com.parking.logger.ui.navigation
 sealed class Screen(val route: String) {
     data object Home : Screen("home")
     data object TesterMgmt : Screen("tester_mgmt")
+    data object History : Screen("history")
     data object Session : Screen("session/{sessionId}") {
         fun createRoute(sessionId: Long) = "session/$sessionId"
     }

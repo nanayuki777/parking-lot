@@ -49,4 +49,37 @@ class ParkingRepository(
     suspend fun getRecordById(id: Long): ParkingRecord? = parkingRecordDao.getRecordById(id)
 
     suspend fun updateRecord(record: ParkingRecord) = parkingRecordDao.update(record)
+
+    /** 获取某个 session 的全部子记录（同步） */
+    suspend fun getRecordsForSessionSync(sessionId: Long): List<ParkingRecord> =
+        parkingRecordDao.getAllRecords().filter { it.sessionId == sessionId }
+
+    /** 清空所有数据（人员 / 测试 / 记录） */
+    suspend fun clearAllData() {
+        parkingRecordDao.clearAll()
+        testSessionDao.clearAll()
+        testerDao.clearAll()
+    }
+
+    /** 备份所有数据，返回包含测试人与记录的完整结构数据 */
+    suspend fun getAllDataForBackup(): List<SessionWithTester> {
+        val testers = testerDao.getAllTestersSync()
+        val sessions = testSessionDao.getAllSessionsSync()
+        val records = parkingRecordDao.getAllRecords()
+
+        return sessions.map { session ->
+            val tester = testers.firstOrNull { it.id == session.testerId }
+            SessionWithTester(
+                session = session,
+                testerName = tester?.name ?: "",
+                records = records.filter { it.sessionId == session.id }
+            )
+        }
+    }
 }
+
+data class SessionWithTester(
+    val session: TestSession,
+    val testerName: String,
+    val records: List<ParkingRecord>
+)

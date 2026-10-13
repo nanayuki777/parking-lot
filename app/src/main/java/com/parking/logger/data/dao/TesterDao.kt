@@ -17,6 +17,9 @@ interface TesterDao {
     @Query("SELECT * FROM testers WHERE id = :id")
     suspend fun getTesterById(id: Long): Tester?
 
+    @Query("SELECT * FROM testers")
+    suspend fun getAllTestersSync(): List<Tester>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(tester: Tester): Long
 
@@ -25,4 +28,7 @@ interface TesterDao {
 
     @Delete
     suspend fun delete(tester: Tester)
+
+    @Query("DELETE FROM testers")
+    suspend fun clearAll()
 }

@@ -24,15 +24,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,7 +41,8 @@ fun CountScreen(
     onConfirm: (totalCount: Int) -> Unit,
     onBack: () -> Unit
 ) {
-    var count by remember { mutableIntStateOf(0) }
+    val viewModel: CountViewModel = viewModel()
+    val count by viewModel.count.collectAsState()
 
     Scaffold(
         topBar = {
@@ -95,43 +96,43 @@ fun CountScreen(
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // Count controls
+            // Count controls: both arrows add one (前进/后退都算一把)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // 加一把 (next maneuver)
+                // 后退一把
                 FloatingActionButton(
-                    onClick = { count++ },
+                    onClick = { viewModel.increment() },
                     modifier = Modifier
                         .weight(1f)
                         .height(120.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.ArrowDownward, contentDescription = "加一把")
-                        Text("加一把")
+                        Icon(Icons.Default.ArrowUpward, contentDescription = "后退一把")
+                        Text("后退一把")
                     }
                 }
 
                 Spacer(modifier = Modifier.width(24.dp))
 
-                // 退一把 (undo)
+                // 前进一把
                 FloatingActionButton(
-                    onClick = { if (count > 0) count-- },
+                    onClick = { viewModel.increment() },
                     modifier = Modifier
                         .weight(1f)
                         .height(120.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.ArrowUpward, contentDescription = "退一把")
-                        Text("退一把")
+                        Icon(Icons.Default.ArrowDownward, contentDescription = "前进一把")
+                        Text("前进一把")
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "每做一步泊车操作点一次「加一把」，记错可点「退一把」",
+                text = "前进或后退每次操作都算一把，点对应箭头累加",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

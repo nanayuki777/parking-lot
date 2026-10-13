@@ -25,4 +25,10 @@ interface ParkingRecordDao {
 
     @Delete
     suspend fun delete(record: ParkingRecord)
+
+    @Query("SELECT * FROM parking_records")
+    suspend fun getAllRecords(): List<ParkingRecord>
+
+    @Query("DELETE FROM parking_records")
+    suspend fun clearAll()
 }

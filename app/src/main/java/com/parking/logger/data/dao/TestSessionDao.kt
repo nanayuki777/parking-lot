@@ -21,4 +21,10 @@ interface TestSessionDao {
 
     @Delete
     suspend fun delete(session: TestSession)
+
+    @Query("DELETE FROM test_sessions")
+    suspend fun clearAll()
+
+    @Query("SELECT * FROM test_sessions")
+    suspend fun getAllSessionsSync(): List<TestSession>
 }
