@@ -33,10 +33,10 @@ object BackupExporter {
                     mapOf(
                         "id" to r.id,
                         "timestamp" to r.timestamp,
-                        "parkingType" to ParkingType.runCatching { valueOf(r.parkingType).label }
+                        "parkingType" to runCatching { ParkingType.valueOf(r.parkingType).label }
                             .getOrDefault(r.parkingType),
                         "condition" to r.condition,
-                        "boundary" to Boundary.runCatching { valueOf(r.boundary).label }
+                        "boundary" to runCatching { Boundary.valueOf(r.boundary).label }
                             .getOrDefault(r.boundary),
                         "totalCount" to r.totalCount,
                         "isIO" to r.isIO,

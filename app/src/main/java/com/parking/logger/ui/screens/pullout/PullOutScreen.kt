@@ -80,16 +80,6 @@ fun PullOutScreen(
             photoPath = photoUri.toString()
         }
     }
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            openCamera()
-        } else {
-            Toast.makeText(context, "需要相机权限", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     fun openCamera() {
         val photoFile = File(
             context.getExternalFilesDir(null),
@@ -98,6 +88,16 @@ fun PullOutScreen(
         photoFile.parentFile?.mkdirs()
         photoUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
         cameraLauncher.launch(photoUri!!)
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            openCamera()
+        } else {
+            Toast.makeText(context, "需要相机权限", Toast.LENGTH_SHORT).show()
+        }
     }
 
     Scaffold(

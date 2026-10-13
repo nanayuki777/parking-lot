@@ -240,7 +240,7 @@ private fun SessionCard(
 
 @Composable
 private fun RecordRow(record: ParkingRecord) {
-    val typeLabel = ParkingType.runCatching { valueOf(record.parkingType).label }
+    val typeLabel = runCatching { ParkingType.valueOf(record.parkingType).label }
         .getOrDefault(record.parkingType)
     val ioLabel = if (record.isIO) "IO" else "不IO"
     Row(
