@@ -22,18 +22,12 @@ object BackupExporter {
                 val typeOfManeuver = if (r.maneuver.isNotEmpty()) r.maneuver else
                     if (r.parkingType == ParkingType.FISHBONE.name) "Park-out" else "Park-in"
 
-                val parkingSituation = runCatching {
-                    ParkingCondition.valueOf(r.condition)
-                }.getOrNull()?.let { condition ->
-                    when (condition) {
-                        ParkingCondition.ONE_SIDE_CAR, ParkingCondition.CAR_AND_PILLAR,
-                        ParkingCondition.FRONT_CAR, ParkingCondition.REAR_CAR -> "Free one side"
-                        ParkingCondition.BOTH_SIDES_CAR, ParkingCondition.BOTH_CAR -> "Between two object"
-                        ParkingCondition.NO_CAR, ParkingCondition.NO_CAR_AROUND,
-                        ParkingCondition.PILLAR_AND_LINE, ParkingCondition.FISHBONE -> "Free both side"
-                        ParkingCondition.SIDE_PULL_OUT, ParkingCondition.STRAIGHT_PULL_OUT -> "Free both side"
-                    }
-                } ?: "Free both side"
+                val parkingSituation = when (r.condition) {
+                    ParkingCondition.BETWEEN_TWO_OBJECT.name -> "Between two object"
+                    ParkingCondition.FREE_ONE_SIDE.name -> "Free one side"
+                    ParkingCondition.FREE_BOTH_SIDE.name -> "Free both side"
+                    else -> "Free both side"
+                }
 
                 val noteValue = if (r.isIO) "Good" else r.ioIssues
 

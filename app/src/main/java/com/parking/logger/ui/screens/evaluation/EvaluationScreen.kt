@@ -237,7 +237,7 @@ fun EvaluationScreen(
                         style = MaterialTheme.typography.titleLarge
                     )
                     Text(
-                        text = "条件: $conditionName · 边界: $boundaryName",
+                        text = "条件: $conditionName",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

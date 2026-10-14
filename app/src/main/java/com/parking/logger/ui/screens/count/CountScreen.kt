@@ -96,12 +96,12 @@ fun CountScreen(
 
             Spacer(modifier = Modifier.height(48.dp))
 
-            // Count controls: both arrows add one (前进/后退都算一把)
+            // Count controls: both add one (前进/后退都算一把)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // 后退一把
+                // 后退一把 (向下箭头)
                 FloatingActionButton(
                     onClick = { viewModel.increment() },
                     modifier = Modifier
@@ -109,14 +109,14 @@ fun CountScreen(
                         .height(120.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.ArrowUpward, contentDescription = "后退一把")
+                        Icon(Icons.Default.ArrowDownward, contentDescription = "后退一把")
                         Text("后退一把")
                     }
                 }
 
                 Spacer(modifier = Modifier.width(24.dp))
 
-                // 前进一把
+                // 前进一把 (向上箭头)
                 FloatingActionButton(
                     onClick = { viewModel.increment() },
                     modifier = Modifier
@@ -124,7 +124,7 @@ fun CountScreen(
                         .height(120.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.ArrowDownward, contentDescription = "前进一把")
+                        Icon(Icons.Default.ArrowUpward, contentDescription = "前进一把")
                         Text("前进一把")
                     }
                 }

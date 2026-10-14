@@ -117,7 +117,6 @@ class EvaluationViewModel(
 
     companion object {
         val ISSUES = listOf(
-            "Good",
             "Abort",
             "Skew angle",
             "too many strokes",

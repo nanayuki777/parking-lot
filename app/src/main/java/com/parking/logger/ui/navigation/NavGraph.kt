@@ -11,7 +11,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.parking.logger.ParkingApp
-import com.parking.logger.ui.screens.boundary.BoundaryScreen
 import com.parking.logger.ui.screens.condition.ConditionScreen
 import com.parking.logger.ui.screens.count.CountScreen
 import com.parking.logger.ui.screens.evaluation.EvaluationScreen
@@ -106,26 +105,7 @@ fun NavGraph(navController: NavHostController) {
             ConditionScreen(
                 parkingTypeName = parkingType,
                 onConditionSelected = { condition ->
-                    navController.navigate(Screen.Boundary.createRoute(sessionId, parkingType, condition.name))
-                },
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable(
-            route = Screen.Boundary.route,
-            arguments = listOf(
-                navArgument("sessionId") { type = NavType.LongType },
-                navArgument("parkingType") { type = NavType.StringType },
-                navArgument("condition") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val sessionId = backStackEntry.arguments?.getLong("sessionId") ?: return@composable
-            val parkingType = backStackEntry.arguments?.getString("parkingType") ?: return@composable
-            val condition = backStackEntry.arguments?.getString("condition") ?: return@composable
-            BoundaryScreen(
-                onBoundarySelected = { boundary ->
-                    navController.navigate(Screen.Count.createRoute(sessionId, parkingType, condition, boundary.name))
+                    navController.navigate(Screen.Count.createRoute(sessionId, parkingType, condition.name))
                 },
                 onBack = { navController.popBackStack() }
             )
@@ -136,14 +116,12 @@ fun NavGraph(navController: NavHostController) {
             arguments = listOf(
                 navArgument("sessionId") { type = NavType.LongType },
                 navArgument("parkingType") { type = NavType.StringType },
-                navArgument("condition") { type = NavType.StringType },
-                navArgument("boundary") { type = NavType.StringType }
+                navArgument("condition") { type = NavType.StringType }
             )
         ) { backStackEntry ->
             val sessionId = backStackEntry.arguments?.getLong("sessionId") ?: return@composable
             val parkingType = backStackEntry.arguments?.getString("parkingType") ?: return@composable
             val condition = backStackEntry.arguments?.getString("condition") ?: return@composable
-            val boundary = backStackEntry.arguments?.getString("boundary") ?: return@composable
             val parkingTypeLabel = runCatching {
                 com.parking.logger.data.model.ParkingType.valueOf(parkingType).label
             }.getOrDefault(parkingType)
@@ -151,7 +129,7 @@ fun NavGraph(navController: NavHostController) {
                 parkingTypeLabel = parkingTypeLabel,
                 onConfirm = { totalCount ->
                     navController.navigate(
-                        Screen.Evaluation.createRoute(sessionId, parkingType, condition, boundary, totalCount)
+                        Screen.Evaluation.createRoute(sessionId, parkingType, condition, totalCount)
                     )
                 },
                 onBack = { navController.popBackStack() }
@@ -164,20 +142,18 @@ fun NavGraph(navController: NavHostController) {
                 navArgument("sessionId") { type = NavType.LongType },
                 navArgument("parkingType") { type = NavType.StringType },
                 navArgument("condition") { type = NavType.StringType },
-                navArgument("boundary") { type = NavType.StringType },
                 navArgument("totalCount") { type = NavType.IntType }
             )
         ) { backStackEntry ->
             val sessionId = backStackEntry.arguments?.getLong("sessionId") ?: return@composable
             val parkingType = backStackEntry.arguments?.getString("parkingType") ?: return@composable
             val condition = backStackEntry.arguments?.getString("condition") ?: return@composable
-            val boundary = backStackEntry.arguments?.getString("boundary") ?: return@composable
             val totalCount = backStackEntry.arguments?.getInt("totalCount") ?: 0
             EvaluationScreen(
                 sessionId = sessionId,
                 parkingTypeName = parkingType,
                 conditionName = condition,
-                boundaryName = boundary,
+                boundaryName = "",
                 totalCount = totalCount,
                 repository = repository,
                 onRecordSaved = { recordId, needsPullOut ->
