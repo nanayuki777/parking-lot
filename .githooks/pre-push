@@ -1,0 +1,41 @@
+#!/bin/sh
+# ---------------------------------------------------------------------------
+# 推送前编译检查：编译不过就拒绝推送，避免把坏代码推到远端。
+#
+# 每台机器启用一次：
+#     git config core.hooksPath .githooks
+#
+# 本钩子需要 JDK 17：
+#   - 装了 Android Studio 的机器通常已具备（JAVA_HOME 或 PATH 中有 java）
+#   - 纯命令行环境请设置 JAVA_HOME，例如（Windows）：
+#         setx JAVA_HOME "C:\path\to\jdk-17"
+#
+# 确需跳过本次检查：
+#     git push --no-verify
+#
+# 注意：本文件必须保持无 BOM（BOM 会破坏 shebang），且使用 LF 换行。
+# ---------------------------------------------------------------------------
+set -e
+
+if [ -z "${JAVA_HOME:-}" ] && ! command -v java >/dev/null 2>&1; then
+    echo "[pre-push] JDK not found: JAVA_HOME is unset and 'java' is not on PATH."
+    echo "[pre-push] This hook needs JDK 17 to verify the build."
+    echo "[pre-push] Set it once, then retry, e.g. (Windows):"
+    echo "[pre-push]     setx JAVA_HOME \"C:\\path\\to\\jdk-17\""
+    echo "[pre-push] To bypass this check for one push: git push --no-verify"
+    exit 1
+fi
+
+if [ -f gradlew.bat ] && [ -n "${WINDIR:-}" ]; then
+    echo "[pre-push] Verifying build (Windows)..."
+    cmd //c gradlew.bat assembleDebug -q
+elif [ -f gradlew ]; then
+    echo "[pre-push] Verifying build..."
+    sh ./gradlew assembleDebug -q
+else
+    echo "[pre-push] Gradle wrapper not found - skipping build check."
+    echo "[pre-push] Please verify manually: gradle assembleDebug"
+    exit 0
+fi
+
+echo "[pre-push] Build OK - push allowed."

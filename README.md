@@ -53,6 +53,33 @@
 > 注意：本项目的照片 / 录音文件保存在 App 私有外部目录
 > `Android/data/com.parking.logger/files/ParkingLogger/` 下，方便导出时定位。
 
+### 协作约定（重要）
+
+**push 之前必须本地编译通过**（本仓库曾多次推上编译不过的代码）：
+
+```bash
+./gradlew assembleDebug
+```
+
+仓库提供 `.githooks/pre-push` 钩子自动拦截编译不过的推送，**每台机器启用一次**：
+
+```bash
+git config core.hooksPath .githooks
+```
+
+临时跳过：`git push --no-verify`
+
+> 本项目**模拟器不可用**（需管理员权限开启 WHPX/Hyper-V），运行时验证只能靠真机，
+> 而真机安装由专门的构建机负责。推上编译不过的代码会让整条链路直接停住。
+
+**依赖下载失败时**（Maven Central 在部分网络下不可达）：不要改 `settings.gradle.kts`，
+改用本机 `~/.gradle/init.d/mirrors.gradle` 挂镜像，详见
+[.github/copilot-instructions.md](.github/copilot-instructions.md)。
+
+**⚠️ 提升 Room 数据库版本会清空真机数据**：`AppDatabase` 使用了
+`fallbackToDestructiveMigration()`，升 `version` 会清空已有的测试人员／会话／泊车记录。
+需要保留数据请写 `Migration`。
+
 ---
 
 ## 项目简介 / 核心流程
