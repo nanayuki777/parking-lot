@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Save
@@ -60,6 +61,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.parking.logger.data.repository.ParkingRepository
 import com.parking.logger.util.AudioRecorder
+import com.parking.logger.util.VoiceDistanceListener
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -175,9 +177,81 @@ fun EvaluationScreen(
         }
     }
 
+    // ------ 语音距离录入 ------
+    val voiceListener = remember { VoiceDistanceListener(context) }
+    var isVoiceInputActive by remember { mutableStateOf(false) }
+    val hasSpeechRecognition = remember { voiceListener.isAvailable }
+
+    val voicePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            voiceListener.start()
+            isVoiceInputActive = true
+        } else {
+            Toast.makeText(context, "需要录音权限才能语音录入", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun startVoiceInput() {
+        if (!hasSpeechRecognition) {
+            Toast.makeText(context, "设备不支持语音识别", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            voiceListener.start()
+            isVoiceInputActive = true
+        } else {
+            voicePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    fun stopVoiceInput() {
+        voiceListener.stop()
+        isVoiceInputActive = false
+    }
+
+    // 处理语音识别结果：填到对应字段
+    voiceListener.onSpoken = { labelIndex, value, rawText ->
+        when (labelIndex) {
+            null -> {
+                // 无标签：按顺序填入第一个空字段
+                when {
+                    distanceBL.isBlank() -> viewModel.updateDistanceBL(value.toString())
+                    distanceBack.isBlank() -> viewModel.updateDistanceBack(value.toString())
+                    distanceBR.isBlank() -> viewModel.updateDistanceBR(value.toString())
+                    distanceFR.isBlank() -> viewModel.updateDistanceFR(value.toString())
+                    distanceFront.isBlank() -> viewModel.updateDistanceFront(value.toString())
+                    distanceFL.isBlank() -> viewModel.updateDistanceFL(value.toString())
+                    else -> {
+                        Toast.makeText(context, "六个距离已填满", Toast.LENGTH_SHORT).show()
+                        stopVoiceInput()
+                    }
+                }
+            }
+            0 -> viewModel.updateDistanceBL(value.toString())
+            1 -> viewModel.updateDistanceBack(value.toString())
+            2 -> viewModel.updateDistanceBR(value.toString())
+            3 -> viewModel.updateDistanceFR(value.toString())
+            4 -> viewModel.updateDistanceFront(value.toString())
+            5 -> viewModel.updateDistanceFL(value.toString())
+            else -> Unit
+        }
+    }
+    voiceListener.onStatusChanged = { active ->
+        isVoiceInputActive = active
+    }
+    voiceListener.onError = { msg ->
+        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+        isVoiceInputActive = false
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             audioRecorder.release()
+            voiceListener.release()
         }
     }
 
@@ -393,6 +467,36 @@ fun EvaluationScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     prefix = { Text("FL ") }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 语音录入距离
+            OutlinedButton(
+                onClick = {
+                    if (isVoiceInputActive) stopVoiceInput()
+                    else startVoiceInput()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = hasSpeechRecognition
+            ) {
+                Icon(
+                    if (isVoiceInputActive) Icons.Default.Stop else Icons.Default.GraphicEq,
+                    contentDescription = null
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    if (isVoiceInputActive) "正在监听… 逐个说出 BL/后/BR/右前/Front/FL，或直接报数字"
+                    else "语音录入距离"
+                )
+            }
+            if (isVoiceInputActive) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "● 正在连续监听，说一个数字就会填入对应距离",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
 
