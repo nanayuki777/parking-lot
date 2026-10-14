@@ -62,6 +62,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.parking.logger.data.repository.ParkingRepository
 import com.parking.logger.util.AudioRecorder
 import com.parking.logger.util.VoiceDistanceListener
+import com.parking.logger.util.VoiceDistanceParser
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -180,6 +181,7 @@ fun EvaluationScreen(
     // ------ 语音距离录入 ------
     val voiceListener = remember { VoiceDistanceListener(context) }
     var isVoiceInputActive by remember { mutableStateOf(false) }
+    var skippedIndices by remember { mutableStateOf(setOf<Int>()) }
     val hasSpeechRecognition = remember { voiceListener.isAvailable }
 
     val voicePermissionLauncher = rememberLauncherForActivityResult(
@@ -214,29 +216,51 @@ fun EvaluationScreen(
     }
 
     // 处理语音识别结果：填到对应字段
-    voiceListener.onSpoken = { labelIndex, value, rawText ->
-        when (labelIndex) {
-            null -> {
-                // 无标签：按顺序填入第一个空字段
-                when {
-                    distanceBL.isBlank() -> viewModel.updateDistanceBL(value.toString())
-                    distanceBack.isBlank() -> viewModel.updateDistanceBack(value.toString())
-                    distanceBR.isBlank() -> viewModel.updateDistanceBR(value.toString())
-                    distanceFR.isBlank() -> viewModel.updateDistanceFR(value.toString())
-                    distanceFront.isBlank() -> viewModel.updateDistanceFront(value.toString())
-                    distanceFL.isBlank() -> viewModel.updateDistanceFL(value.toString())
-                    else -> {
-                        Toast.makeText(context, "六个距离已填满", Toast.LENGTH_SHORT).show()
-                        stopVoiceInput()
-                    }
+    voiceListener.onSpoken = { targetIndex, value, skip, _ ->
+        val setters: List<(String) -> Unit> = listOf(
+            viewModel::updateDistanceBL, viewModel::updateDistanceBack, viewModel::updateDistanceBR,
+            viewModel::updateDistanceFR, viewModel::updateDistanceFront, viewModel::updateDistanceFL
+        )
+        fun firstAvailable(filled: List<Boolean>, skipped: Set<Int>): Int? {
+            for (i in 0 until 6) {
+                if (!filled[i] && i !in skipped) return i
+            }
+            return null
+        }
+        val filledByIndex = listOf(
+            distanceBL.isNotBlank(), distanceBack.isNotBlank(), distanceBR.isNotBlank(),
+            distanceFR.isNotBlank(), distanceFront.isNotBlank(), distanceFL.isNotBlank()
+        )
+
+        when {
+            // 明确的第N个 / 标签字段
+            targetIndex != null -> {
+                if (skip) {
+                    skippedIndices = skippedIndices + targetIndex
+                    Toast.makeText(context, "${VoiceDistanceParser.FIELDS[targetIndex]} 已跳过", Toast.LENGTH_SHORT).show()
+                } else if (value != null) {
+                    setters[targetIndex](value.toString())
+                    skippedIndices = skippedIndices - targetIndex
                 }
             }
-            0 -> viewModel.updateDistanceBL(value.toString())
-            1 -> viewModel.updateDistanceBack(value.toString())
-            2 -> viewModel.updateDistanceBR(value.toString())
-            3 -> viewModel.updateDistanceFR(value.toString())
-            4 -> viewModel.updateDistanceFront(value.toString())
-            5 -> viewModel.updateDistanceFL(value.toString())
+            // 无编号，但有数字 → 顺序填下一个可用
+            value != null -> {
+                val idx = firstAvailable(filledByIndex, skippedIndices)
+                if (idx != null) {
+                    setters[idx](value.toString())
+                } else {
+                    Toast.makeText(context, "六个距离已填满", Toast.LENGTH_SHORT).show()
+                    stopVoiceInput()
+                }
+            }
+            // 无编号，仅跳过词 → 跳过下一个可用字段
+            skip -> {
+                val idx = firstAvailable(filledByIndex, skippedIndices)
+                if (idx != null) {
+                    skippedIndices = skippedIndices + idx
+                    Toast.makeText(context, "${VoiceDistanceParser.FIELDS[idx]} 已跳过", Toast.LENGTH_SHORT).show()
+                }
+            }
             else -> Unit
         }
     }
@@ -487,14 +511,14 @@ fun EvaluationScreen(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    if (isVoiceInputActive) "正在监听… 逐个说出 BL/后/BR/右前/Front/FL，或直接报数字"
+                    if (isVoiceInputActive) "正在监听… 可说：第一个/第二个…或 BL/FR 标签，或直接报数字；跳过/不填可留空"
                     else "语音录入距离"
                 )
             }
             if (isVoiceInputActive) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "● 正在连续监听，说一个数字就会填入对应距离",
+                    text = "● 连续监听中：报“第一个 2.5”或“BL 2.5”填对应字段；报“跳过”可留空该字段",
                     color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.bodySmall
                 )

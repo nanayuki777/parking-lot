@@ -23,8 +23,8 @@ class VoiceDistanceListener(
     var isStarted: Boolean = false
         private set
 
-    /** 回调：index(0~5) 命中的字段标签；null 表示未命中标签（应按顺序填充）。value 为解析出的数字。 */
-    var onSpoken: ((index: Int?, value: Double, rawText: String) -> Unit)? = null
+    /** 回调：targetIndex 命中的字段(0~5)或 null；value 数字或 null；skip 是否跳过；rawText 识别原文 */
+    var onSpoken: ((targetIndex: Int?, value: Double?, skip: Boolean, rawText: String) -> Unit)? = null
     var onStatusChanged: ((isListening: Boolean) -> Unit)? = null
     var onError: ((String) -> Unit)? = null
 
@@ -109,9 +109,7 @@ class VoiceDistanceListener(
             if (matches.isNotEmpty()) {
                 val text = matches[0]
                 val parsed = VoiceDistanceParser.parse(text)
-                parsed.value?.let { value ->
-                    onSpoken?.invoke(parsed.labelIndex, value, text)
-                }
+                onSpoken?.invoke(parsed.targetIndex, parsed.value, parsed.skip, text)
             }
             // 继续监听（除非调用方已 stop）
             if (isStarted) startListening()
