@@ -1,73 +1,78 @@
 package com.parking.logger.util
 
 import android.content.Context
-import android.net.Uri
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
-import com.google.gson.reflect.TypeToken
-import com.parking.logger.data.model.Boundary
+import com.parking.logger.data.model.ParkingCondition
 import com.parking.logger.data.model.ParkingType
-import com.parking.logger.data.model.TestSession
 import com.parking.logger.data.repository.SessionWithTester
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-/**
- * 导出备份工具：把测试数据序列化成 JSON 写入文件，可分享。
- */
 object BackupExporter {
 
     private val gson: Gson = GsonBuilder()
         .setPrettyPrinting()
         .create()
 
-    /**
-     * 生成备份文件数据，返回一个可读的 JSON 字符串。
-     */
     fun buildJson(sessions: List<SessionWithTester>): String {
-        val data = sessions.map { sw ->
-            mapOf(
-                "sessionId" to sw.session.id,
-                "tester" to sw.testerName,
-                "location" to sw.session.location,
-                "startTime" to sw.session.startTime,
-                "records" to sw.records.map { r ->
-                    mapOf(
-                        "id" to r.id,
-                        "timestamp" to r.timestamp,
-                        "parkingType" to runCatching { ParkingType.valueOf(r.parkingType).label }
-                            .getOrDefault(r.parkingType),
-                        "condition" to r.condition,
-                        "boundary" to runCatching { Boundary.valueOf(r.boundary).label }
-                            .getOrDefault(r.boundary),
-                        "totalCount" to r.totalCount,
-                        "isIO" to r.isIO,
-                        "ioIssues" to r.ioIssues,
-                        "note" to r.note,
-                        "photoPath" to r.photoPath,
-                        "audioPath" to r.audioPath,
-                        "pullOutType" to r.pullOutType,
-                        "pullOutMoveCount" to r.pullOutMoveCount,
-                        "pullOutResult" to r.pullOutResult
+        val triggerList = sessions.flatMap { sw ->
+            sw.records.map { r ->
+                val typeOfManeuver = if (r.maneuver.isNotEmpty()) r.maneuver else
+                    if (r.parkingType == ParkingType.FISHBONE.name) "Park-out" else "Park-in"
+
+                val parkingSituation = runCatching {
+                    ParkingCondition.valueOf(r.condition)
+                }.getOrNull()?.let { condition ->
+                    when (condition) {
+                        ParkingCondition.ONE_SIDE_CAR, ParkingCondition.CAR_AND_PILLAR,
+                        ParkingCondition.FRONT_CAR, ParkingCondition.REAR_CAR -> "Free one side"
+                        ParkingCondition.BOTH_SIDES_CAR, ParkingCondition.BOTH_CAR -> "Between two object"
+                        ParkingCondition.NO_CAR, ParkingCondition.NO_CAR_AROUND,
+                        ParkingCondition.PILLAR_AND_LINE, ParkingCondition.FISHBONE -> "Free both side"
+                        ParkingCondition.SIDE_PULL_OUT, ParkingCondition.STRAIGHT_PULL_OUT -> "Free both side"
+                    }
+                } ?: "Free both side"
+
+                val noteValue = if (r.isIO) "Good" else r.ioIssues
+
+                mapOf(
+                    "location" to sw.session.location,
+                    "datetime" to formatTimestamp(r.timestamp),
+                    "note" to noteValue,
+                    "issue" to (if (r.issue.isNotEmpty()) r.issue else
+                        runCatching { ParkingType.valueOf(r.parkingType).issueLabel }
+                            .getOrDefault(r.parkingType)),
+                    "type_of_maneuver" to typeOfManeuver,
+                    "parking_situation" to parkingSituation,
+                    "image_link" to (r.photoPath.ifEmpty { "" }),
+                    "number_of_strokes" to r.totalCount,
+                    "skew_angle" to r.skewAngle.toDouble(),
+                    "distance" to mapOf(
+                        "BL" to r.distanceBL.toDouble(),
+                        "Back" to r.distanceBack.toDouble(),
+                        "BR" to r.distanceBR.toDouble(),
+                        "FR" to r.distanceFR.toDouble(),
+                        "Front" to r.distanceFront.toDouble(),
+                        "FL" to r.distanceFL.toDouble()
                     )
-                }
-            )
+                )
+            }
         }
-        return gson.toJson(data)
+        return gson.toJson(mapOf("trigger_list" to triggerList))
     }
 
-    /**
-     * 把备份写入应用私有目录的 backup 文件夹，返回文件绝对路径。
-     */
+    private fun formatTimestamp(millis: Long): String {
+        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+        return sdf.format(Date(millis))
+    }
+
     fun saveBackup(context: Context, content: String, testers: Int, sessions: Int, records: Int): String {
         val dir = java.io.File(context.getExternalFilesDir(null), "ParkingLogger/backup")
         dir.mkdirs()
         val file = java.io.File(dir, "backup_${System.currentTimeMillis()}.json")
-        file.writeText(
-            "{\n" +
-                "  \"exportedAt\": ${System.currentTimeMillis()},\n" +
-                "  \"summary\": {\"testers\": $testers, \"sessions\": $sessions, \"records\": $records},\n" +
-                "  \"data\": $content\n" +
-                "}"
-        )
+        file.writeText(content)
         return file.absolutePath
     }
 }

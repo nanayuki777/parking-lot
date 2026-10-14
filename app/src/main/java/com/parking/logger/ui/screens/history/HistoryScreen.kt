@@ -240,8 +240,7 @@ private fun SessionCard(
 
 @Composable
 private fun RecordRow(record: ParkingRecord) {
-    val typeLabel = runCatching { ParkingType.valueOf(record.parkingType).label }
-        .getOrDefault(record.parkingType)
+    val displayIssue = if (record.issue.isNotEmpty()) record.issue else record.parkingType
     val ioLabel = if (record.isIO) "IO" else "不IO"
     Row(
         modifier = Modifier
@@ -250,9 +249,9 @@ private fun RecordRow(record: ParkingRecord) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = typeLabel,
+            text = displayIssue,
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.width(56.dp)
+            modifier = Modifier.width(80.dp)
         )
         Text(
             text = "${record.totalCount}把",

@@ -87,31 +87,31 @@ fun ParkingTypeScreen(
 
             TypeCard(
                 icon = Icons.Default.DriveEta,
-                label = "正入",
-                description = "车头正向驶入车位",
+                label = ParkingType.FRONT_IN.label,
+                description = "Prependicular Forward",
                 count = countById[ParkingType.FRONT_IN.name] ?: 0,
                 onClick = { onTypeSelected(ParkingType.FRONT_IN) }
             )
             TypeCard(
                 icon = Icons.Default.UnfoldMore,
-                label = "反入",
-                description = "倒车入库",
+                label = ParkingType.REVERSE_IN.label,
+                description = "Prependicular Backward",
                 count = countById[ParkingType.REVERSE_IN.name] ?: 0,
                 onClick = { onTypeSelected(ParkingType.REVERSE_IN) }
             )
             TypeCard(
                 icon = Icons.Default.SwapHoriz,
-                label = "侧方",
-                description = "路边侧方停车",
+                label = ParkingType.SIDE_PARKING.label,
+                description = "Parallel",
                 count = countById[ParkingType.SIDE_PARKING.name] ?: 0,
                 onClick = { onTypeSelected(ParkingType.SIDE_PARKING) }
             )
             TypeCard(
                 icon = Icons.Default.DirectionsCar,
-                label = "手动泊入后的泊出",
-                description = "泊入已完成，记录泊出表现",
-                count = countById[ParkingType.MANUAL_PULL_OUT.name] ?: 0,
-                onClick = { onTypeSelected(ParkingType.MANUAL_PULL_OUT) }
+                label = ParkingType.FISHBONE.label,
+                description = "Fishbone",
+                count = countById[ParkingType.FISHBONE.name] ?: 0,
+                onClick = { onTypeSelected(ParkingType.FISHBONE) }
             )
         }
     }

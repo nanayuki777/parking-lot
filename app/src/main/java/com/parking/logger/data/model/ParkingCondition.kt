@@ -11,6 +11,6 @@ enum class ParkingCondition(val label: String, val parentTypes: List<ParkingType
     REAR_CAR("后有车", listOf(ParkingType.SIDE_PARKING)),
     BOTH_CAR("前后都有车", listOf(ParkingType.SIDE_PARKING)),
     NO_CAR_AROUND("前后都没车", listOf(ParkingType.SIDE_PARKING)),
-    SIDE_PULL_OUT("侧方泊出", listOf(ParkingType.MANUAL_PULL_OUT)),
-    STRAIGHT_PULL_OUT("直出", listOf(ParkingType.MANUAL_PULL_OUT))
+    SIDE_PULL_OUT("侧方泊出", listOf(ParkingType.FISHBONE)),
+    STRAIGHT_PULL_OUT("直出", listOf(ParkingType.FISHBONE))
 }

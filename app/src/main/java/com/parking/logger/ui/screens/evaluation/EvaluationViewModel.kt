@@ -27,6 +27,19 @@ class EvaluationViewModel(
     private val _note = MutableStateFlow("")
     val note: StateFlow<String> = _note
 
+    private val _distanceBL = MutableStateFlow("")
+    val distanceBL: StateFlow<String> = _distanceBL
+    private val _distanceBack = MutableStateFlow("")
+    val distanceBack: StateFlow<String> = _distanceBack
+    private val _distanceBR = MutableStateFlow("")
+    val distanceBR: StateFlow<String> = _distanceBR
+    private val _distanceFR = MutableStateFlow("")
+    val distanceFR: StateFlow<String> = _distanceFR
+    private val _distanceFront = MutableStateFlow("")
+    val distanceFront: StateFlow<String> = _distanceFront
+    private val _distanceFL = MutableStateFlow("")
+    val distanceFL: StateFlow<String> = _distanceFL
+
     private val _photoPath = MutableStateFlow("")
     val photoPath: StateFlow<String> = _photoPath
 
@@ -40,11 +53,18 @@ class EvaluationViewModel(
     val error: StateFlow<String?> = _error
 
     val needsPullOut = parkingTypeName == ParkingType.FRONT_IN.name ||
-            parkingTypeName == ParkingType.SIDE_PARKING.name
+            parkingTypeName == ParkingType.SIDE_PARKING.name ||
+            parkingTypeName == ParkingType.FISHBONE.name
 
     val parkingTypeLabel: String = runCatching {
         ParkingType.valueOf(parkingTypeName).label
     }.getOrDefault(parkingTypeName)
+
+    val issueLabel: String = runCatching {
+        ParkingType.valueOf(parkingTypeName).issueLabel
+    }.getOrDefault(parkingTypeName)
+
+    private val maneuver: String = if (parkingTypeName == ParkingType.FISHBONE.name) "Park-out" else "Park-in"
 
     fun setIsIO(value: Boolean) { _isIO.value = value }
 
@@ -56,6 +76,12 @@ class EvaluationViewModel(
     }
 
     fun updateNote(v: String) { _note.value = v }
+    fun updateDistanceBL(v: String) { _distanceBL.value = v }
+    fun updateDistanceBack(v: String) { _distanceBack.value = v }
+    fun updateDistanceBR(v: String) { _distanceBR.value = v }
+    fun updateDistanceFR(v: String) { _distanceFR.value = v }
+    fun updateDistanceFront(v: String) { _distanceFront.value = v }
+    fun updateDistanceFL(v: String) { _distanceFL.value = v }
     fun setPhotoPath(v: String) { _photoPath.value = v }
     fun setAudioPath(v: String) { _audioPath.value = v }
 
@@ -63,6 +89,8 @@ class EvaluationViewModel(
         viewModelScope.launch {
             val record = ParkingRecord(
                 sessionId = sessionId,
+                issue = issueLabel,
+                maneuver = maneuver,
                 parkingType = parkingTypeName,
                 condition = conditionName,
                 boundary = boundaryName,
@@ -70,6 +98,13 @@ class EvaluationViewModel(
                 isIO = _isIO.value,
                 ioIssues = if (_isIO.value) "" else _selectedIssues.value.joinToString(","),
                 note = _note.value,
+                skewAngle = 0f,
+                distanceBL = _distanceBL.value.toFloatOrNull() ?: 0f,
+                distanceBack = _distanceBack.value.toFloatOrNull() ?: 0f,
+                distanceBR = _distanceBR.value.toFloatOrNull() ?: 0f,
+                distanceFR = _distanceFR.value.toFloatOrNull() ?: 0f,
+                distanceFront = _distanceFront.value.toFloatOrNull() ?: 0f,
+                distanceFL = _distanceFL.value.toFloatOrNull() ?: 0f,
                 photoPath = _photoPath.value,
                 audioPath = _audioPath.value
             )
@@ -82,13 +117,15 @@ class EvaluationViewModel(
 
     companion object {
         val ISSUES = listOf(
-            "Skew Angle",
-            "PEP Outside",
-            "Too Many Strokes",
-            "离Wheel Stopper太远",
-            "功能中断",
-            "碰撞（风险）",
-            "车辆纵向控制"
+            "Good",
+            "Abort",
+            "Skew angle",
+            "too many strokes",
+            "far away WS",
+            "PEP outside",
+            "jerk brake",
+            "no offer",
+            "others"
         )
     }
 }

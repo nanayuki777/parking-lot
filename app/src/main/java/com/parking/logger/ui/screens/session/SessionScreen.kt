@@ -196,11 +196,12 @@ private fun RecordCard(
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = record.parkingType,
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.weight(1f)
-                )
+                    val displayIssue = if (record.issue.isNotEmpty()) record.issue else record.parkingType
+                    Text(
+                        text = displayIssue,
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.weight(1f)
+                    )
                 Text(
                     text = "${record.totalCount}把",
                     style = MaterialTheme.typography.bodyMedium,

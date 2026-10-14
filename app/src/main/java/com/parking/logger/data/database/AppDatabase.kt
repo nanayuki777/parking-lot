@@ -13,7 +13,7 @@ import com.parking.logger.data.model.Tester
 
 @Database(
     entities = [Tester::class, TestSession::class, ParkingRecord::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

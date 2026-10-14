@@ -52,6 +52,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -90,6 +92,12 @@ fun EvaluationScreen(
     val isIO by viewModel.isIO.collectAsState()
     val selectedIssues by viewModel.selectedIssues.collectAsState()
     val note by viewModel.note.collectAsState()
+    val distanceBL by viewModel.distanceBL.collectAsState()
+    val distanceBack by viewModel.distanceBack.collectAsState()
+    val distanceBR by viewModel.distanceBR.collectAsState()
+    val distanceFR by viewModel.distanceFR.collectAsState()
+    val distanceFront by viewModel.distanceFront.collectAsState()
+    val distanceFL by viewModel.distanceFL.collectAsState()
     val savedRecordId by viewModel.savedRecordId.collectAsState()
     val error by viewModel.error.collectAsState()
 
@@ -316,6 +324,77 @@ fun EvaluationScreen(
                 minLines = 2,
                 maxLines = 4
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Distance measurements section
+            Text(
+                text = "距离测量",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = distanceBL,
+                    onValueChange = viewModel::updateDistanceBL,
+                    label = { Text("BL") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    prefix = { Text("BL ") }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedTextField(
+                    value = distanceBack,
+                    onValueChange = viewModel::updateDistanceBack,
+                    label = { Text("Back") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedTextField(
+                    value = distanceBR,
+                    onValueChange = viewModel::updateDistanceBR,
+                    label = { Text("BR") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    prefix = { Text("BR ") }
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = distanceFR,
+                    onValueChange = viewModel::updateDistanceFR,
+                    label = { Text("FR") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    prefix = { Text("FR ") }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedTextField(
+                    value = distanceFront,
+                    onValueChange = viewModel::updateDistanceFront,
+                    label = { Text("Front") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedTextField(
+                    value = distanceFL,
+                    onValueChange = viewModel::updateDistanceFL,
+                    label = { Text("FL") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    prefix = { Text("FL ") }
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
