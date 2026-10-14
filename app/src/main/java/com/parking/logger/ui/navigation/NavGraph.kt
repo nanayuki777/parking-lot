@@ -182,7 +182,9 @@ fun NavGraph(navController: NavHostController) {
                 onSaved = {
                     navController.popBackStack(Screen.ParkingType.createRoute(sessionId), false)
                 },
-                onBack = { navController.popBackStack() }
+                onBack = {
+                    navController.popBackStack(Screen.ParkingType.createRoute(sessionId), false)
+                }
             )
         }
     }
