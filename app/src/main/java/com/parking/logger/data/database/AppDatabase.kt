@@ -52,7 +52,8 @@ abstract class AppDatabase : RoomDatabase() {
                 audioPath TEXT NOT NULL,
                 pullOutType TEXT NOT NULL,
                 pullOutMoveCount INTEGER NOT NULL,
-                pullOutResult TEXT NOT NULL
+                pullOutResult TEXT NOT NULL,
+                FOREIGN KEY(sessionId) REFERENCES test_sessions(id) ON UPDATE NO ACTION ON DELETE CASCADE
             )
         """
 

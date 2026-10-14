@@ -63,17 +63,38 @@ git config core.hooksPath .githooks
 
 ---
 
-## 四、Room 数据库：升版本会清空用户数据
+## 四、Room 数据库与迁移
 
-`AppDatabase` 目前使用 `fallbackToDestructiveMigration()`。这意味着：
+自 version 4 起，`AppDatabase` 已改为**显式 `Migration`**（`MIGRATION_2_4`、`MIGRATION_3_4`），
+不再使用 `fallbackToDestructiveMigration()`——**升级不再清空真机数据**。
 
-> **只要提升 `AppDatabase` 的 `version`，用户设备上已有的全部数据
-> （测试人员、测试会话、泊车记录、以及记录关联的照片/录音索引）都会被清空。**
+> 历史教训：version 1→2、2→3 曾两次因破坏性迁移清空真机数据。
+> 如果以后的改动确实不介意清空，请在提交信息里**明确写出「本版本会清空真机数据」**。
 
-历史上已因此清空过真机数据两次（version 1→2、2→3）。
+### ⚠️ 最容易踩的坑：迁移后表结构校验失败（App 启动即闪退）
 
-如果某次改动需要保留数据，请写正式的 `Migration`，而不是单纯把版本号 +1。
-如果不介意清空，也请在提交信息里**明确写出「本版本会清空真机数据」**，方便构建机提前告知测试人员。
+```
+java.lang.IllegalStateException: Migration didn't properly handle: parking_records(...)
+    at androidx.room.RoomOpenHelper.onUpgrade(RoomOpenHelper.kt:93)
+```
+
+Room 在迁移完成后，会把**实际表结构**与**由实体推导出的期望结构**逐项比对——
+字段、类型、NOT NULL、默认值、索引、**外键**，任何一处不一致都会抛异常并让 App 启动即崩溃。
+
+手写迁移最常见的疏漏是**重建表时漏掉外键约束**（真实发生过一次）：
+
+```sql
+-- 重建 parking_records 时必须带上外键，且 ON UPDATE / ON DELETE 都要写全
+FOREIGN KEY(sessionId) REFERENCES test_sessions(id) ON UPDATE NO ACTION ON DELETE CASCADE
+```
+
+**获取 Room 生成的「规范 DDL」的两种办法：**
+
+1. 从已构建的 APK 里搜 dex 中的字符串 `CREATE TABLE IF NOT EXISTS`；
+2. 把 `exportSchema` 设为 `true` 并配置 `room.schemaLocation`，构建后读生成的 schema JSON。
+
+> 建议：迁移代码写完后，**在带有旧版本数据的真机上实测一次升级路径**，
+> 不要只测全新安装（全新安装不会触发迁移，问题会被掩盖）。
 
 ---
 
