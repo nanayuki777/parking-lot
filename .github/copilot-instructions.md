@@ -125,3 +125,73 @@ settingsEvaluated { settings ->
 ```
 
 （写成 `init.d` 脚本的好处：属于本机配置，不进入仓库，因此不会与 `git pull` 冲突。）
+
+---
+
+## 六、语音录入（SpeechRecognizer）：真机实测结论
+
+### 6.1 必须声明 `<queries>`，否则功能完全不可用
+
+`targetSdk >= 30` 时，若 manifest 不声明下面的 `<queries>`，`SpeechRecognizer.isRecognitionAvailable()`
+**恒为 `false`**——即使设备已装识别服务也查不到。表现为「语音录入」按钮**置灰**、无法点击。
+
+```xml
+<queries>
+    <intent>
+        <action android:name="android.speech.RecognitionService" />
+    </intent>
+</queries>
+```
+
+已修复（见 `AndroidManifest.xml`）。真机验证：修复前按钮置灰，修复后可点击。
+
+> 排查提示：`adb shell pm query-services -a android.speech.RecognitionService` 不受包可见性限制，
+> 可用来区分「设备真的没有识别服务」与「被包可见性挡住」。
+
+### 6.2 真机（小米 23116PN5BC / Android 14）上云端识别连不通 —— 尚未解决
+
+实测日志（`adb logcat`，小米 `com.xiaomi.mibrain.speech/.asr.AsrService`）：
+
+```
+AsrService: onStartListening: isCTAAllow=true isRecordPermGranted=true useLocal=false
+AsrService: startEngine → startAudioInput → onPreSpeakBegin       ← 已就绪
+    ~5 秒后
+EngineCapabilityUtils: onError code=50010004 msg=timeout at stage:DIALOG_START
+AivsSDK-[OkHttp http://111.13.40.86:8080/] LiteCryptWsClient:
+    onFailure: java.net.SocketException: Socket closed
+```
+
+**结论：App 侧无问题**（权限已授予、识别服务已绑定、引擎已启动）。
+失败发生在小米识别服务**建立云端会话**阶段（WebSocket 到 `111.13.40.86:8080` 建连失败）。
+关闭手机 VPN 后仍失败，说明不是代理拦截。
+
+可能原因（未最终确认）：
+1. 该云端端点在当前网络下不可达；
+2. 或 MIUI 的云端 ASR 对**第三方应用**不开放（系统应用可能持有预认证会话）。
+
+**可尝试的方向**（按性价比排序）：
+1. 让识别走本地引擎，绕开云端：`RecognizerIntent.EXTRA_PREFER_OFFLINE = true`
+   （服务日志中的 `useLocal=false` 可能正是由该 extra 决定的）
+2. 换网络（Wi-Fi / 蜂窝）验证是否为网络可达性问题
+3. 对照测试：MIUI 键盘的语音输入、小爱同学是否可用
+4. 兜底：语音不可用时，距离字段仍可**手动输入**（注意不要因此让按钮处于不可用状态而无提示）
+
+### 6.3 已修复的相关缺陷
+
+| 缺陷 | 影响 |
+|------|------|
+| 所有 `onError` 分支静默重试、无任何提示 | 云端持续失败时界面永远停在「正在监听…」，用户零反馈，故障无法察觉（改为：提示错误 + 连续失败 3 次后停止） |
+| `onResults` 在 `matches` 为空时提前 `return` | 一次空结果会让连续监听**永久停住**（改为：无论是否有结果都继续监听） |
+
+### 6.4 语音文本解析（`VoiceDistanceParser`）已修复的 3 个错误
+
+| 输入 | 修复前 | 修复后 |
+|------|--------|--------|
+| 「右后 2.5」 | 填到 **Back**（`Back` 的单字别名「后」抢先命中） | BR |
+| 「左前 2.5」 | 填到 **Front**（`Front` 的单字别名「前」抢先命中） | FL |
+| 「第1个 2.5」 | 值取成 **1.0**（正则先抓到编号里的「1」） | 2.5 |
+| 「十五点五」 | **105.5**（`十` 被按位拼接） | 15.5 |
+
+要点：标签匹配必须**长别名优先**（`LABEL_MATCHERS` 按长度倒序）；抽数字前要先剔除编号词与标签词；
+中文整数需按「十」作位标记解析，而小数部分要按位拼接。
+

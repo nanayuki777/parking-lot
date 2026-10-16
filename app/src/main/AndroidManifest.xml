@@ -10,6 +10,19 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
+    <!--
+        语音识别（SpeechRecognizer）所需的包可见性声明。
+        targetSdk >= 30 时，未声明该 <queries> 会导致
+        SpeechRecognizer.isRecognitionAvailable() 恒为 false —— 即使设备已安装
+        识别服务（如小米的 com.xiaomi.mibrain.speech），应用也查询不到，
+        表现为「语音录入」按钮置灰、无法使用。
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
     <application
         android:name=".ParkingApp"
         android:allowBackup="true"

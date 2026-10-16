@@ -268,8 +268,9 @@ fun EvaluationScreen(
         isVoiceInputActive = active
     }
     voiceListener.onError = { msg ->
-        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-        isVoiceInputActive = false
+        // 只负责提示；状态由 onStatusChanged 驱动（停止时会回传 false），
+        // 这里不要直接改 isVoiceInputActive，否则与真实监听状态不一致。
+        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
     }
 
     DisposableEffect(Unit) {

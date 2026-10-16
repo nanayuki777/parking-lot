@@ -25,6 +25,16 @@ object VoiceDistanceParser {
         "FL" to listOf("fl", "f l", "左前", "左边前", "前左")
     )
 
+    /**
+     * 扁平化的标签匹配表，按别名长度倒序排列。
+     *
+     * 必须长别名优先：否则「右后」会被 Back 的单字别名「后」抢先匹配（BR 永远轮不到），
+     * 同理「左前」会被 Front 的「前」抢先匹配。长度相同时保持原定义顺序。
+     */
+    private val LABEL_MATCHERS: List<Pair<String, Int>> = LABEL_ALIASES
+        .flatMap { (canonical, aliases) -> aliases.map { it to FIELDS.indexOf(canonical) } }
+        .sortedByDescending { it.first.length }
+
     // 顺序编号词："第一个" -> 0
     private val ORDINAL_WORDS = mapOf(
         "第一个" to 0, "第1个" to 0, "第一" to 0,
@@ -67,7 +77,14 @@ object VoiceDistanceParser {
         val ordinalIndex = matchOrdinal(normalized)
         val labelIndex = if (ordinalIndex == null) matchLabel(normalized) else null
         val skip = SKIP_WORDS.any { normalized.contains(it) }
-        val value = extractNumber(normalized)
+
+        // 先剔除编号词与标签词，再抽取数字。
+        // 否则「第1个 2.5」中的编号「1」会先被正则抓到，把 1.0 当成距离值。
+        var remainder = normalized
+        ORDINAL_WORDS.keys.forEach { remainder = remainder.replace(it, " ") }
+        LABEL_ALIASES.values.flatten().forEach { remainder = remainder.replace(it, " ") }
+
+        val value = extractNumber(remainder)
 
         val targetIndex = ordinalIndex ?: labelIndex
         return ParseResult(targetIndex, value, skip)
@@ -85,12 +102,9 @@ object VoiceDistanceParser {
     }
 
     private fun matchLabel(text: String): Int? {
-        for ((canonical, aliases) in LABEL_ALIASES) {
-            val idx = FIELDS.indexOf(canonical)
-            for (a in aliases) {
-                val pattern = Regex("(?<![a-z0-9])${Regex.escape(a)}(?![a-z0-9])")
-                if (pattern.containsMatchIn(text)) return idx
-            }
+        for ((alias, idx) in LABEL_MATCHERS) {
+            val pattern = Regex("(?<![a-z0-9])${Regex.escape(alias)}(?![a-z0-9])")
+            if (pattern.containsMatchIn(text)) return idx
         }
         return null
     }
@@ -102,7 +116,8 @@ object VoiceDistanceParser {
         Regex("([零〇一二两三四五六七八九十]+)点([零〇一二两三四五六七八九十]+)")
             .find(text)?.let { m ->
                 val whole = m.groupValues[1].toChineseInt()
-                val frac = m.groupValues[2].toChineseInt()
+                // 小数部分按位读（“二五” → .25），不能走带“十”的整数逻辑
+                val frac = m.groupValues[2].chineseDigits()
                 val fracStr = frac.toString()
                 return whole + frac / 10.0.pow(fracStr.length)
             }
@@ -124,12 +139,26 @@ object VoiceDistanceParser {
         return null
     }
 
-    private fun String.toChineseInt(): Int {
+    /** 逐位拼接："二五" → 25、"五" → 5。中文小数按位读，故小数部分用它。 */
+    private fun String.chineseDigits(): Int {
         var result = 0
         for (c in this) {
             result = result * 10 + (CHINESE_DIGITS[c.toString()] ?: 0)
         }
         return result
+    }
+
+    /**
+     * 整数部分：支持「十」作位标记。
+     * 五 → 5、十五 → 15、二十 → 20、二十五 → 25、三十五 → 35。
+     * （原实现按位拼接会把「十五」算成 105。）
+     */
+    private fun String.toChineseInt(): Int {
+        if (!contains('十')) return chineseDigits()
+        val parts = split('十')
+        val tens = parts[0].takeIf { it.isNotEmpty() }?.chineseDigits() ?: 1
+        val ones = parts.getOrNull(1)?.takeIf { it.isNotEmpty() }?.chineseDigits() ?: 0
+        return tens * 10 + ones
     }
 
     private fun String.toEnglishInt(): Int? {

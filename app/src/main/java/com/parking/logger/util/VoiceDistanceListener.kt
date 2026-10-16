@@ -20,6 +20,13 @@ class VoiceDistanceListener(
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
 
+    /** 连续失败次数：超过阈值就停止并明确报错，避免静默无限重试 */
+    private var consecutiveFailures = 0
+
+    companion object {
+        private const val MAX_CONSECUTIVE_FAILURES = 3
+    }
+
     var isStarted: Boolean = false
         private set
 
@@ -37,6 +44,7 @@ class VoiceDistanceListener(
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
         speechRecognizer?.setRecognitionListener(recognitionListener)
         isStarted = true
+        consecutiveFailures = 0
         startListening()
         onStatusChanged?.invoke(true)
     }
@@ -87,31 +95,63 @@ class VoiceDistanceListener(
 
         override fun onError(error: Int) {
             when (error) {
+                // 连续听写中的正常情况（静音/忙）：静默重试，不计入失败
+                SpeechRecognizer.ERROR_NO_MATCH,
                 SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> {
-                    if (isStarted) startListening()
-                }
-                SpeechRecognizer.ERROR_NO_MATCH -> {
                     if (isStarted) startListening()
                 }
                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
                     onError?.invoke("缺少录音权限，无法语音录入")
                     stop()
                 }
+                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
+                    failOrRetry("没听到语音，请靠近麦克风再说一次")
+                }
+                SpeechRecognizer.ERROR_NETWORK,
+                SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> {
+                    failOrRetry("语音识别网络异常，请检查网络后重试")
+                }
+                SpeechRecognizer.ERROR_SERVER -> {
+                    failOrRetry("语音识别服务出错，请稍后重试")
+                }
+                SpeechRecognizer.ERROR_CLIENT -> {
+                    failOrRetry("语音识别客户端错误，请重试")
+                }
+                SpeechRecognizer.ERROR_AUDIO -> {
+                    failOrRetry("录音出错，请重试")
+                }
                 else -> {
-                    if (isStarted) startListening()
+                    failOrRetry("语音识别失败（错误码 $error）")
                 }
             }
         }
 
+        /**
+         * 记录一次失败：达到阈值就停止并提示，否则静默重试。
+         * 原实现把所有错误都无提示地重试，导致界面永远停在「正在监听…」，
+         * 用户无法得知云端识别其实一直在失败。
+         */
+        private fun failOrRetry(message: String) {
+            if (!isStarted) return
+            consecutiveFailures++
+            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                onError?.invoke("$message（已连续失败 $consecutiveFailures 次，已停止）")
+                stop()
+            } else {
+                startListening()
+            }
+        }
+
         override fun onResults(results: Bundle?) {
+            consecutiveFailures = 0
             val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                ?: return
-            if (matches.isNotEmpty()) {
+            if (!matches.isNullOrEmpty()) {
                 val text = matches[0]
                 val parsed = VoiceDistanceParser.parse(text)
                 onSpoken?.invoke(parsed.targetIndex, parsed.value, parsed.skip, text)
             }
-            // 继续监听（除非调用方已 stop）
+            // 继续监听（除非调用方已 stop）。
+            // 注意不能在上面的判空处直接 return，否则一次空结果会让连续监听永久停住。
             if (isStarted) startListening()
         }
 
