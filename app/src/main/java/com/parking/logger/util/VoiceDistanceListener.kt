@@ -1,31 +1,20 @@
 package com.parking.logger.util
 
 import android.content.Context
-import android.content.Intent
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 
 /**
- * 连续语音识别监听器：把每次识别的语音解析成距离数字。
- * 识别结果通过 [onSpoken] 回调抛出（带可选字段标签），
- * 由调用方（屏幕层）决定填入哪个字段。
- * 持续监听到调用方主动 [stop] 或设备酸度报错为止。
+ * 距离语音识别器（对外门面）。
+ *
+ * 内部基于 Vosk 离线识别，不再依赖系统的 SpeechRecognizer（其依赖厂商云端，
+ * 在无网或云端被拒时不可用）。对外回调签名保持不变，调用方可无缝切换。
+ *
+ * 调用 [start] 时若 Vosk 模型尚未加载，会自动异步加载，加载完成后立即开始连续监听。
  */
 class VoiceDistanceListener(
     private val context: Context
 ) {
 
-    private var speechRecognizer: SpeechRecognizer? = null
-    private var isListening = false
-
-    /** 连续失败次数：超过阈值就停止并明确报错，避免静默无限重试 */
-    private var consecutiveFailures = 0
-
-    companion object {
-        private const val MAX_CONSECUTIVE_FAILURES = 3
-    }
+    private val recognizer = VoskDistanceRecognizer(context)
 
     var isStarted: Boolean = false
         private set
@@ -34,128 +23,60 @@ class VoiceDistanceListener(
     var onSpoken: ((targetIndex: Int?, value: Double?, skip: Boolean, rawText: String) -> Unit)? = null
     var onStatusChanged: ((isListening: Boolean) -> Unit)? = null
     var onError: ((String) -> Unit)? = null
+    /** 实时转写（识别过程中不断更新，测试用） */
+    var onPartialText: ((String) -> Unit)? = null
+    /** 收音音量（0~1 相对强度），用于画波形 */
+    var onRmsLevel: ((Float) -> Unit)? = null
+    /** 模型加载状态变化（供界面提示：加载中 / 就绪 / 失败） */
+    var onModelStateChanged: (() -> Unit)? = null
 
-    /** 判断设备是否支持语音识别 */
-    val isAvailable: Boolean
-        get() = SpeechRecognizer.isRecognitionAvailable(context)
+    /** Vosk 模型是否已加载就绪 */
+    val isModelReady: Boolean get() = recognizer.isModelReady
+    val isLoading: Boolean get() = recognizer.isLoading
+    val loadError: String? get() = recognizer.loadError
+
+    /** 判断是否可用：Vosk 随包自带，理论可用；实际看模型加载是否成功 */
+    val isAvailable: Boolean get() = true
+
+    /** 进入界面即预加载模型（不开始录音，只让模型尽快就绪） */
+    fun preload() {
+        recognizer.init()
+    }
+
+    init {
+        recognizer.onStatusChanged = { listening ->
+            isStarted = listening
+            onStatusChanged?.invoke(listening)
+        }
+        recognizer.onError = { msg ->
+            onError?.invoke(msg)
+        }
+        recognizer.onPartialText = { text ->
+            onPartialText?.invoke(text)
+        }
+        recognizer.onRmsLevel = { level ->
+            onRmsLevel?.invoke(level)
+        }
+        recognizer.onModelStateChanged = {
+            onModelStateChanged?.invoke()
+        }
+        recognizer.onRecognized = { text, parsed ->
+            onSpoken?.invoke(parsed.targetIndex, parsed.value, parsed.skip, text)
+        }
+    }
 
     fun start() {
         if (isStarted) return
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
-        speechRecognizer?.setRecognitionListener(recognitionListener)
-        isStarted = true
-        consecutiveFailures = 0
-        startListening()
-        onStatusChanged?.invoke(true)
+        recognizer.start()
     }
 
     fun stop() {
-        speechRecognizer?.cancel()
-        speechRecognizer?.destroy()
-        speechRecognizer = null
-        val wasStarted = isStarted
+        recognizer.stop()
         isStarted = false
-        isListening = false
-        if (wasStarted) onStatusChanged?.invoke(false)
     }
 
     fun release() {
-        stop()
-    }
-
-    private fun startListening() {
-        if (!isStarted) return
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-            )
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            // 尽量连续：安静多久（毫秒）后结束一次识别
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500)
-        }
-        try {
-            speechRecognizer?.startListening(intent)
-            isListening = true
-        } catch (e: Exception) {
-            onError?.invoke("语音识别启动失败: ${e.message}")
-        }
-    }
-
-    private val recognitionListener = object : RecognitionListener {
-        override fun onReadyForSpeech(params: Bundle?) {}
-        override fun onBeginningOfSpeech() {}
-        override fun onRmsChanged(rmsdB: Float) {}
-        override fun onBufferReceived(buffer: ByteArray?) {}
-        override fun onEndOfSpeech() {
-            isListening = false
-        }
-
-        override fun onError(error: Int) {
-            when (error) {
-                // 连续听写中的正常情况（静音/忙）：静默重试，不计入失败
-                SpeechRecognizer.ERROR_NO_MATCH,
-                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> {
-                    if (isStarted) startListening()
-                }
-                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
-                    onError?.invoke("缺少录音权限，无法语音录入")
-                    stop()
-                }
-                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
-                    failOrRetry("没听到语音，请靠近麦克风再说一次")
-                }
-                SpeechRecognizer.ERROR_NETWORK,
-                SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> {
-                    failOrRetry("语音识别网络异常，请检查网络后重试")
-                }
-                SpeechRecognizer.ERROR_SERVER -> {
-                    failOrRetry("语音识别服务出错，请稍后重试")
-                }
-                SpeechRecognizer.ERROR_CLIENT -> {
-                    failOrRetry("语音识别客户端错误，请重试")
-                }
-                SpeechRecognizer.ERROR_AUDIO -> {
-                    failOrRetry("录音出错，请重试")
-                }
-                else -> {
-                    failOrRetry("语音识别失败（错误码 $error）")
-                }
-            }
-        }
-
-        /**
-         * 记录一次失败：达到阈值就停止并提示，否则静默重试。
-         * 原实现把所有错误都无提示地重试，导致界面永远停在「正在监听…」，
-         * 用户无法得知云端识别其实一直在失败。
-         */
-        private fun failOrRetry(message: String) {
-            if (!isStarted) return
-            consecutiveFailures++
-            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                onError?.invoke("$message（已连续失败 $consecutiveFailures 次，已停止）")
-                stop()
-            } else {
-                startListening()
-            }
-        }
-
-        override fun onResults(results: Bundle?) {
-            consecutiveFailures = 0
-            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-            if (!matches.isNullOrEmpty()) {
-                val text = matches[0]
-                val parsed = VoiceDistanceParser.parse(text)
-                onSpoken?.invoke(parsed.targetIndex, parsed.value, parsed.skip, text)
-            }
-            // 继续监听（除非调用方已 stop）。
-            // 注意不能在上面的判空处直接 return，否则一次空结果会让连续监听永久停住。
-            if (isStarted) startListening()
-        }
-
-        override fun onPartialResults(partialResults: Bundle?) {}
-        override fun onEvent(eventType: Int, params: Bundle?) {}
+        recognizer.release()
+        isStarted = false
     }
 }

@@ -34,6 +34,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -182,7 +183,38 @@ fun EvaluationScreen(
     val voiceListener = remember { VoiceDistanceListener(context) }
     var isVoiceInputActive by remember { mutableStateOf(false) }
     var skippedIndices by remember { mutableStateOf(setOf<Int>()) }
-    val hasSpeechRecognition = remember { voiceListener.isAvailable }
+    var voicePartialText by remember { mutableStateOf("") }
+    var voiceRms by remember { mutableStateOf(0f) }
+    var voiceModelState by remember {
+        mutableStateOf(
+            if (voiceListener.isModelReady) "模型就绪" else if (voiceListener.isLoading) "模型加载中…" else "模型未加载"
+        )
+    }
+    val hasSpeechRecognition = true // Vosk 随包自带，一定支持
+    val voicePermissionGranted = ContextCompat.checkSelfPermission(
+        context, Manifest.permission.RECORD_AUDIO
+    ) == PackageManager.PERMISSION_GRANTED
+
+    // 进入页面即预加载模型，避免首次点击等待
+    LaunchedEffect(Unit) {
+        voiceListener.preload()
+    }
+
+    // 实时转写 + 音量 + 加载状态
+    voiceListener.onPartialText = { text ->
+        voicePartialText = text
+    }
+    voiceListener.onRmsLevel = { level ->
+        voiceRms = level
+    }
+    voiceListener.onModelStateChanged = {
+        voiceModelState = when {
+            voiceListener.isModelReady -> "模型就绪"
+            voiceListener.isLoading -> "模型加载中…"
+            voiceListener.loadError != null -> "模型加载失败"
+            else -> "模型未加载"
+        }
+    }
 
     val voicePermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -497,7 +529,55 @@ fun EvaluationScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 语音录入距离
+            // ---- 语音录入状态区（测试调试用）----
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    // 权限与模型状态
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "权限: ${if (voicePermissionGranted) "已授权●" else "未授权○"}",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = "引擎: $voiceModelState",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (voiceListener.isModelReady)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.error
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // 实时转写条
+                    Text(
+                        text = "转写: ${voicePartialText.ifBlank { "(等待说话…)" }}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // 音量波形（听没听到声音的直观反馈）
+                    LinearProgressIndicator(
+                        progress = { voiceRms.coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 语音录入按钮
             OutlinedButton(
                 onClick = {
                     if (isVoiceInputActive) stopVoiceInput()
@@ -512,14 +592,14 @@ fun EvaluationScreen(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    if (isVoiceInputActive) "正在监听… 可说：第一个/第二个…或 BL/FR 标签，或直接报数字；跳过/不填可留空"
+                    if (isVoiceInputActive) "正在监听… 点击停止"
                     else "语音录入距离"
                 )
             }
             if (isVoiceInputActive) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "● 连续监听中：报“第一个 2.5”或“BL 2.5”填对应字段；报“跳过”可留空该字段",
+                    text = "● 连续监听中：报“第一个 2.5”或“BL 2.5”填；报“跳过/不填”可留空；上面可实时看转写文字",
                     color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.bodySmall
                 )
