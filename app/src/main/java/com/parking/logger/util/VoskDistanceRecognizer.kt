@@ -9,6 +9,8 @@ import android.media.MediaRecorder
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
+import com.google.gson.Gson
+import com.google.gson.JsonObject
 import org.vosk.Model
 import org.vosk.Recognizer
 import java.io.File
@@ -38,6 +40,7 @@ class VoskDistanceRecognizer(private val context: Context) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val started = AtomicBoolean(false)
     private val disposed = AtomicBoolean(false)
+    private val gson = Gson()
 
     private var model: Model? = null
     private var recognizer: Recognizer? = null
@@ -105,8 +108,12 @@ class VoskDistanceRecognizer(private val context: Context) {
         }
     }
 
+    /**
+     * 模型是否已完整就绪：检查 Vosk 加载必需的关键文件，而不是「目录非空」。
+     * 否则一次解压失败残留的目录也会被判为就绪，从此不再重试（需清应用数据才能恢复）。
+     */
     private fun hasModelFiles(dir: File): Boolean =
-        (dir.listFiles()?.size ?: 0) > 0
+        File(dir, "am/final.mdl").exists() && File(dir, "conf/mfcc.conf").exists()
 
     /** 支持 assets 下的目录或 .zip，拷到内部目录 */
     private fun copyAssetsModel(targetDir: File) {
@@ -161,16 +168,24 @@ class VoskDistanceRecognizer(private val context: Context) {
         targetDir.parentFile?.mkdirs()
         val zipFile = File(targetDir.parentFile, "$MODEL_NAME.zip")
         FileOutputStream(zipFile).use { out -> input.copyTo(out) }
-        val zipInputStream = java.util.zip.ZipInputStream(zipFile.inputStream())
-        zipInputStream.use { zis ->
+        // 清除可能残留的旧内容（例如历史版本错误解压出的嵌套目录）
+        if (targetDir.exists()) targetDir.deleteRecursively()
+        val prefix = "$MODEL_NAME/"
+        java.util.zip.ZipInputStream(zipFile.inputStream()).use { zis ->
             var entry = zis.nextEntry
             while (entry != null) {
-                val outFile = File(targetDir, entry.name)
-                if (entry.isDirectory) {
-                    outFile.mkdirs()
-                } else {
-                    outFile.parentFile?.mkdirs()
-                    FileOutputStream(outFile).use { out -> zis.copyTo(out) }
+                // zip 内条目均带顶层目录名前缀（如 vosk-model-small-cn-0.22/am/final.mdl），
+                // 必须去掉；否则会解压成 <target>/vosk-model-small-cn-0.22/am/... 多套一层，
+                // 导致 Vosk 的 Model() 在 targetDir 下找不到 am/ conf/ graph/ 而加载失败。
+                val name = entry.name.removePrefix(prefix)
+                if (name.isNotEmpty()) {
+                    val outFile = File(targetDir, name)
+                    if (entry.isDirectory) {
+                        outFile.mkdirs()
+                    } else {
+                        outFile.parentFile?.mkdirs()
+                        FileOutputStream(outFile).use { out -> zis.copyTo(out) }
+                    }
                 }
                 zis.closeEntry()
                 entry = zis.nextEntry
@@ -299,15 +314,20 @@ class VoskDistanceRecognizer(private val context: Context) {
         }
     }
 
+    /**
+     * 从 Vosk 返回的 JSON 中取字段。
+     *
+     * 注意：Vosk 的 JSON 是 `{"partial" : "文字"}` 形式 —— **冒号前有空格**
+     * （其序列化实现固定输出 `"key" : value`）。因此不能用 indexOf("\"partial\":\"") 之类
+     * 的字符串匹配。这里直接用 Gson 解析，既不受空白影响，也能正确处理转义字符。
+     */
     private fun parseField(json: String?, field: String): String? {
-        if (json == null) return null
-        val key = "\"$field\":\""
-        val start = json.indexOf(key)
-        if (start < 0) return null
-        val vStart = start + key.length
-        val end = json.indexOf('"', vStart)
-        if (end < 0) return null
-        return json.substring(vStart, end)
+        if (json.isNullOrBlank()) return null
+        return try {
+            gson.fromJson(json, JsonObject::class.java)?.get(field)?.asString
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun computeRms(shortBuf: ShortArray, length: Int): Float {
