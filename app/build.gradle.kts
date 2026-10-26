@@ -75,4 +75,7 @@ dependencies {
 
     // JSON serialization for complex fields
     implementation("com.google.code.gson:gson:2.10.1")
+
+    // Image loading for photo thumbnails
+    implementation("io.coil-kt:coil-compose:2.5.0")
 }

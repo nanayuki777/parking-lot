@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Stop
@@ -62,6 +63,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.parking.logger.data.repository.ParkingRepository
+import com.parking.logger.util.AudioPlayer
 import com.parking.logger.util.AudioRecorder
 import java.io.File
 
@@ -105,12 +107,13 @@ fun EvaluationScreen(
     val error by viewModel.error.collectAsState()
 
     // Camera launcher
+    var currentPhotoPath by remember { mutableStateOf("") }
     var photoUri by remember { mutableStateOf<android.net.Uri?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        if (success && photoUri != null) {
-            viewModel.setPhotoPath(photoUri.toString())
+        if (success && currentPhotoPath.isNotEmpty()) {
+            viewModel.setPhotoPath(currentPhotoPath)
         }
     }
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
@@ -121,6 +124,7 @@ fun EvaluationScreen(
                 context.getExternalFilesDir(null), "ParkingLogger/photos/photo_${System.currentTimeMillis()}.jpg"
             )
             photoFile.parentFile?.mkdirs()
+            currentPhotoPath = photoFile.absolutePath
             photoUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
             cameraLauncher.launch(photoUri!!)
         } else {
@@ -132,6 +136,8 @@ fun EvaluationScreen(
     var isRecording by remember { mutableStateOf(false) }
     var audioFilename by remember { mutableStateOf<String?>(null) }
     val audioRecorder = remember { AudioRecorder(context) }
+    val audioPlayer = remember { AudioPlayer(context) }
+    var isPlayingAudio by remember { mutableStateOf(false) }
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -181,6 +187,7 @@ fun EvaluationScreen(
     DisposableEffect(Unit) {
         onDispose {
             audioRecorder.release()
+            audioPlayer.release()
         }
     }
 
@@ -465,6 +472,34 @@ fun EvaluationScreen(
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall
                 )
+            }
+
+            // 试听按钮（录音保存后显示）
+            val savedAudioPath = audioFilename
+            if (savedAudioPath != null && !isRecording) {
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        if (isPlayingAudio) {
+                            audioPlayer.stop()
+                            isPlayingAudio = false
+                        } else {
+                            audioPlayer.play(savedAudioPath)
+                            isPlayingAudio = true
+                            audioPlayer.onCompletion = {
+                                isPlayingAudio = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        if (isPlayingAudio) Icons.Default.Stop else Icons.Default.PlayArrow,
+                        contentDescription = null
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (isPlayingAudio) "停止播放" else "试听录音")
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))

@@ -90,12 +90,13 @@ fun PullOutScreen(
     var selectedIssues by remember { mutableStateOf(setOf<String>()) }
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var photoPath by remember { mutableStateOf("") }
+    var currentPhotoFile by remember { mutableStateOf<File?>(null) }
 
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        if (success && photoUri != null) {
-            photoPath = photoUri.toString()
+        if (success) {
+            photoPath = currentPhotoFile?.absolutePath ?: ""
         }
     }
     fun openCamera() {
@@ -104,6 +105,7 @@ fun PullOutScreen(
             "ParkingLogger/photos/photo_${System.currentTimeMillis()}.jpg"
         )
         photoFile.parentFile?.mkdirs()
+        currentPhotoFile = photoFile
         photoUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
         cameraLauncher.launch(photoUri!!)
     }
