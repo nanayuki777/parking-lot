@@ -1,6 +1,6 @@
 package com.parking.logger.ui.screens.history
 
-import android.widget.Toast
+import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -100,18 +100,28 @@ fun HistoryScreen(
                 actions = {
                     IconButton(onClick = {
                         scope.launch {
-                            val all = repository.getAllDataForBackup()
-                            val content = BackupExporter.buildJson(all)
-                            val path = BackupExporter.saveBackup(
-                                context, content,
-                                all.map { it.testerName }.distinct().size,
-                                all.size,
-                                all.sumOf { it.records.size }
-                            )
-                            snackbarHostState.showSnackbar("备份已导出到: $path")
+                            try {
+                                val all = repository.getAllDataForBackup()
+                                val zipFile = BackupExporter.exportZip(context, all)
+                                if (zipFile != null && zipFile.exists()) {
+                                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                                        context, "${context.packageName}.fileprovider", zipFile
+                                    )
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "application/zip"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(Intent.createChooser(intent, "导出泊车数据"))
+                                } else {
+                                    snackbarHostState.showSnackbar("导出失败：无法创建导出文件")
+                                }
+                            } catch (e: Exception) {
+                                snackbarHostState.showSnackbar("导出失败: ${e.message}")
+                            }
                         }
                     }) {
-                        Icon(Icons.Default.Share, contentDescription = "备份导出")
+                        Icon(Icons.Default.Share, contentDescription = "导出到电脑")
                     }
                     IconButton(onClick = { showClearConfirm = true }) {
                         Icon(
