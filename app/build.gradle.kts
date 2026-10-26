@@ -75,7 +75,4 @@ dependencies {
 
     // JSON serialization for complex fields
     implementation("com.google.code.gson:gson:2.10.1")
-
-    // Vosk 离线语音识别（转文字完全离线，不依赖厂商云端服务）
-    implementation("com.alphacephei:vosk-android:0.3.47")
 }

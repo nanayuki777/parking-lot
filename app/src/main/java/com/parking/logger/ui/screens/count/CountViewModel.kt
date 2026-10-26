@@ -11,4 +11,8 @@ class CountViewModel : ViewModel() {
     fun increment() {
         _count.value += 1
     }
+
+    fun decrement() {
+        if (_count.value > 0) _count.value -= 1
+    }
 }

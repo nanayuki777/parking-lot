@@ -22,19 +22,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -54,16 +53,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.parking.logger.data.repository.ParkingRepository
 import com.parking.logger.util.AudioRecorder
-import com.parking.logger.util.VoiceDistanceListener
-import com.parking.logger.util.VoiceDistanceParser
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -179,136 +178,9 @@ fun EvaluationScreen(
         }
     }
 
-    // ------ 语音距离录入 ------
-    val voiceListener = remember { VoiceDistanceListener(context) }
-    var isVoiceInputActive by remember { mutableStateOf(false) }
-    var skippedIndices by remember { mutableStateOf(setOf<Int>()) }
-    var voicePartialText by remember { mutableStateOf("") }
-    var voiceRms by remember { mutableStateOf(0f) }
-    var voiceModelState by remember {
-        mutableStateOf(
-            if (voiceListener.isModelReady) "模型就绪" else if (voiceListener.isLoading) "模型加载中…" else "模型未加载"
-        )
-    }
-    val hasSpeechRecognition = true // Vosk 随包自带，一定支持
-    val voicePermissionGranted = ContextCompat.checkSelfPermission(
-        context, Manifest.permission.RECORD_AUDIO
-    ) == PackageManager.PERMISSION_GRANTED
-
-    // 进入页面即预加载模型，避免首次点击等待
-    LaunchedEffect(Unit) {
-        voiceListener.preload()
-    }
-
-    // 实时转写 + 音量 + 加载状态
-    voiceListener.onPartialText = { text ->
-        voicePartialText = text
-    }
-    voiceListener.onRmsLevel = { level ->
-        voiceRms = level
-    }
-    voiceListener.onModelStateChanged = {
-        voiceModelState = when {
-            voiceListener.isModelReady -> "模型就绪"
-            voiceListener.isLoading -> "模型加载中…"
-            voiceListener.loadError != null -> "模型加载失败"
-            else -> "模型未加载"
-        }
-    }
-
-    val voicePermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            voiceListener.start()
-            isVoiceInputActive = true
-        } else {
-            Toast.makeText(context, "需要录音权限才能语音录入", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    fun startVoiceInput() {
-        if (!hasSpeechRecognition) {
-            Toast.makeText(context, "设备不支持语音识别", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
-            == PackageManager.PERMISSION_GRANTED
-        ) {
-            voiceListener.start()
-            isVoiceInputActive = true
-        } else {
-            voicePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-        }
-    }
-
-    fun stopVoiceInput() {
-        voiceListener.stop()
-        isVoiceInputActive = false
-    }
-
-    // 处理语音识别结果：填到对应字段
-    voiceListener.onSpoken = { targetIndex, value, skip, _ ->
-        val setters: List<(String) -> Unit> = listOf(
-            viewModel::updateDistanceBL, viewModel::updateDistanceBack, viewModel::updateDistanceBR,
-            viewModel::updateDistanceFR, viewModel::updateDistanceFront, viewModel::updateDistanceFL
-        )
-        fun firstAvailable(filled: List<Boolean>, skipped: Set<Int>): Int? {
-            for (i in 0 until 6) {
-                if (!filled[i] && i !in skipped) return i
-            }
-            return null
-        }
-        val filledByIndex = listOf(
-            distanceBL.isNotBlank(), distanceBack.isNotBlank(), distanceBR.isNotBlank(),
-            distanceFR.isNotBlank(), distanceFront.isNotBlank(), distanceFL.isNotBlank()
-        )
-
-        when {
-            // 明确的第N个 / 标签字段
-            targetIndex != null -> {
-                if (skip) {
-                    skippedIndices = skippedIndices + targetIndex
-                    Toast.makeText(context, "${VoiceDistanceParser.FIELDS[targetIndex]} 已跳过", Toast.LENGTH_SHORT).show()
-                } else if (value != null) {
-                    setters[targetIndex](value.toString())
-                    skippedIndices = skippedIndices - targetIndex
-                }
-            }
-            // 无编号，但有数字 → 顺序填下一个可用
-            value != null -> {
-                val idx = firstAvailable(filledByIndex, skippedIndices)
-                if (idx != null) {
-                    setters[idx](value.toString())
-                } else {
-                    Toast.makeText(context, "六个距离已填满", Toast.LENGTH_SHORT).show()
-                    stopVoiceInput()
-                }
-            }
-            // 无编号，仅跳过词 → 跳过下一个可用字段
-            skip -> {
-                val idx = firstAvailable(filledByIndex, skippedIndices)
-                if (idx != null) {
-                    skippedIndices = skippedIndices + idx
-                    Toast.makeText(context, "${VoiceDistanceParser.FIELDS[idx]} 已跳过", Toast.LENGTH_SHORT).show()
-                }
-            }
-            else -> Unit
-        }
-    }
-    voiceListener.onStatusChanged = { active ->
-        isVoiceInputActive = active
-    }
-    voiceListener.onError = { msg ->
-        // 只负责提示；状态由 onStatusChanged 驱动（停止时会回传 false），
-        // 这里不要直接改 isVoiceInputActive，否则与真实监听状态不一致。
-        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
-    }
-
     DisposableEffect(Unit) {
         onDispose {
             audioRecorder.release()
-            voiceListener.release()
         }
     }
 
@@ -384,32 +256,48 @@ fun EvaluationScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                androidx.compose.material3.FilterChip(
-                    selected = isIO,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
                     onClick = { viewModel.setIsIO(true) },
-                    label = { Text("IO") },
-                    leadingIcon = {
-                        Icon(
-                            if (isIO) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                androidx.compose.material3.FilterChip(
-                    selected = !isIO,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isIO) Color(0xFF2E7D32) else Color(0xFFBDBDBD),
+                        contentColor = Color.White
+                    ),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Icon(
+                        if (isIO) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("IO", fontSize = 18.sp)
+                }
+                Button(
                     onClick = { viewModel.setIsIO(false) },
-                    label = { Text("不 IO") },
-                    leadingIcon = {
-                        Icon(
-                            if (!isIO) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                )
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (!isIO) Color(0xFFC62828) else Color(0xFFBDBDBD),
+                        contentColor = Color.White
+                    ),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Icon(
+                        if (!isIO) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("不 IO", fontSize = 18.sp)
+                }
             }
 
             // Section: Issues (only when not IO)
@@ -524,84 +412,6 @@ fun EvaluationScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     prefix = { Text("FL ") }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ---- 语音录入状态区（测试调试用）----
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    // 权限与模型状态
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "权限: ${if (voicePermissionGranted) "已授权●" else "未授权○"}",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text(
-                            text = "引擎: $voiceModelState",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (voiceListener.isModelReady)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.error
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // 实时转写条
-                    Text(
-                        text = "转写: ${voicePartialText.ifBlank { "(等待说话…)" }}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // 音量波形（听没听到声音的直观反馈）
-                    LinearProgressIndicator(
-                        progress = { voiceRms.coerceIn(0f, 1f) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 语音录入按钮
-            OutlinedButton(
-                onClick = {
-                    if (isVoiceInputActive) stopVoiceInput()
-                    else startVoiceInput()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = hasSpeechRecognition
-            ) {
-                Icon(
-                    if (isVoiceInputActive) Icons.Default.Stop else Icons.Default.GraphicEq,
-                    contentDescription = null
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    if (isVoiceInputActive) "正在监听… 点击停止"
-                    else "语音录入距离"
-                )
-            }
-            if (isVoiceInputActive) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "● 连续监听中：报“第一个 2.5”或“BL 2.5”填；报“跳过/不填”可留空；上面可实时看转写文字",
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodySmall
                 )
             }
 
